@@ -1,99 +1,57 @@
-# Importing necessary libraries
 import gymnasium as gym
 import numpy as np
-import random
-import time
+
+def eval(qtable):
+  env = gym.make("FrozenLake-v1", render_mode="human", is_slippery=False)
+  obs, _ = env.reset()
+  for step in range(100):
+    action = act(obs, qtable, eps=0, verbose=1)
+    obs, reward, terminated, truncated, info = env.step(action)
+    if terminated or truncated:
+      obs, _ = env.reset()
+
+def act(obs, qtable, eps=0.2, verbose=0):
+  if np.random.random(1) < eps:
+    if verbose > 0:
+      print("hi")
+    return np.random.randint(0, 4)
+  return np.argmax(qtable[obs])
+
+qtable = np.random.rand(16, 4)
+# eval(qtable)
 import matplotlib.pyplot as plt
+def train(n_steps=100, eps=1.0, learning_rate=0.1):
+  # qtable = np.random.rand(16, 4) * 0.01
+  qtable = np.zeros((16, 4))
+  env = gym.make("FrozenLake-v1", is_slippery=False)
+  obs, _ = env.reset()
+  tot_reward = 0
+  for step in range(n_steps):
+    action = act(obs, qtable, eps)
+    new_obs, reward, terminated, truncated, info = env.step(action)
+    qtable[obs][action] = (1 - learning_rate) * qtable[obs][action] \
+        + learning_rate * (reward \
+          + 0.99 * qtable[new_obs][act(new_obs, qtable, eps=0)])
 
-# Initialize Frozen Lake environment
-env = gym.make("FrozenLake-v1", is_slippery=False)
+    # time.sleep(0.01)
+    tot_reward += reward
+    if terminated:
+      new_obs, _ = env.reset()
+    obs = new_obs
+  print(tot_reward)
+  return qtable
 
-# Q-learning hyperparameters
-learning_rate = 0.8     # Alpha: How much we trust new Q-values over old ones
-discount_factor = 0.95  # Gamma: How much we value future rewards over immediate rewards
-exploration_rate = 1.0  # Epsilon: Starting exploration rate
-max_exploration_rate = 1.0
-min_exploration_rate = 0.01
-exploration_decay_rate = 0.001  # Decay of epsilon after each episode
-num_episodes = 10000    # Total training episodes
-max_steps_per_episode = 100  # Max steps in one episode
-
-# Initialize Q-table with zeros (State x Action table)
-action_space_size = env.action_space.n
-state_space_size = env.observation_space.n
-q_table = np.zeros((state_space_size, action_space_size))
-
-# List of rewards for plotting
-rewards_all_episodes = []
-
-# Q-learning algorithm
-for episode in range(num_episodes):
-    # Reset environment
-    state, _ = env.reset()
-    done = False
-    rewards_current_episode = 0
-
-    for step in range(max_steps_per_episode):
-        # Exploration-exploitation trade-off
-        exploration_rate_threshold = random.uniform(0, 1)
-        if exploration_rate_threshold > exploration_rate:
-            action = np.argmax(q_table[state,:])  # Exploit: Choose action with highest Q-value
-        else:
-            action = env.action_space.sample()  # Explore: Random action
-
-        # Take the action in the environment and observe new state, reward, and done flag
-        new_state, reward, done, _, _ = env.step(action)
-
-        # Update Q-table using the Bellman equation
-        q_table[state, action] = q_table[state, action] * (1 - learning_rate) + \
-                                learning_rate * (reward + discount_factor * np.max(q_table[new_state, :]))
-
-        # Transition to new state
-        state = new_state
-
-        rewards_current_episode += reward
-        if done:
-            break
-
-    # Exploration rate decay
-    exploration_rate = min_exploration_rate + \
-                       (max_exploration_rate - min_exploration_rate) * np.exp(-exploration_decay_rate * episode)
-
-    # Store rewards of each episode
-    rewards_all_episodes.append(rewards_current_episode)
-
-# Calculate and plot average rewards per 1000 episodes
-rewards_per_thousand_episodes = np.split(np.array(rewards_all_episodes), num_episodes / 1000)
-count = 1000
-for r in rewards_per_thousand_episodes:
-    print(f"Average reward in episodes {count-1000} to {count}: {sum(r) / 1000}")
-    count += 1000
-
-# Plotting rewards
-plt.plot(range(num_episodes), rewards_all_episodes)
-plt.title("Rewards Over Episodes")
-plt.xlabel("Episodes")
-plt.ylabel("Rewards")
+qtable = train(10000, eps=1.0, learning_rate=0.1)
+plt.imshow(qtable.max(axis=1).reshape(4,4))
+a_to_arrow = [(-1, 0), (0, 1), (1, 0), (0, -1)]
+for a in range(4):
+  # if a!=1:
+  #   continue
+  for i in range(16):
+    x_ = i % 4
+    y_ = i // 4
+    dir = a_to_arrow[a]
+    plt.arrow(x_, y_, dir[0], dir[1], alpha=qtable[i][a])
 plt.show()
-env = gym.make("FrozenLake-v1", is_slippery=True, render_mode="human")
-# Test the agent after training
-for episode in range(3):
-    state, _ = env.reset()
-    done = False
-    print(f"***EPISODE {episode+1}***\n\n")
-    time.sleep(1)
-
-    for step in range(max_steps_per_episode):
-        env.render()
-        action = np.argmax(q_table[state,:])  # Exploit learned policy
-        new_state, reward, done, _, _ = env.step(action)
-        state = new_state
-        if done:
-            if reward == 1:
-                print("Reached the goal!")
-            else:
-                print("Fell into a hole.")
-            break
-        time.sleep(0.05)  # Slow down for visualization
-
-env.close()
+print(qtable)
+eval(qtable)
