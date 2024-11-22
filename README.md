@@ -10,3 +10,10 @@ Run the **Q-Learning Agent** section in the
 replay buffer learning to land in the lunar lander environment.
 
 ![](pics/SimpleDQN_Lander.gif)
+
+`ql.py` contains a minimal online q-learning algorithm for tabular settings.
+
+Deep Q-Learning
+---------------
+`dql.py` adds a simple modification to the ql.py, making it capable 
+(somewhat) to learn in continuous state spaces.
