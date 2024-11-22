@@ -11,7 +11,7 @@ def eval(qtable):
   env = gym.make(env_str, render_mode="human")
   obs, _ = env.reset()
   obs = th.tensor(obs, dtype=th.float32)
-  for step in range(100):
+  for step in range(400):
     action = act(obs, qtable, eps=0)
     obs, reward, terminated, truncated, info = env.step(action)
     if terminated or truncated:
@@ -31,11 +31,11 @@ def act(obs, qmodel, eps=0.2):
 def qmodel_forward(qmodel, obs, no_grad=False):
   if no_grad:
     with th.no_grad():
-      action = th.tensor(act(obs, qmodel, eps=0))
+      action = th.tensor(act(obs, qmodel, eps=0), dtype=th.int64)
       action_oh = th.nn.functional.one_hot(action, num_classes=action_space.n).to(th.float32)
       return qmodel(th.cat([obs, action_oh], dim=0))
   else:
-    action = th.tensor(act(obs, qmodel, eps=0))
+    action = th.tensor(act(obs, qmodel, eps=0), dtype=th.int64)
     action_oh = th.nn.functional.one_hot(action, num_classes=action_space.n).to(th.float32)
     return qmodel(th.cat([obs, action_oh], dim=0))
 
@@ -53,8 +53,10 @@ def train(n_steps=100, eps=1.0, learning_rate=0.1):
   obs, _ = env.reset()
   obs = th.tensor(obs, dtype=th.float32)
   tot_reward = 0
+  episode_rew = 0
+  eps_list = np.linspace(eps, 0.01, n_steps)
   for step in range(n_steps):
-    action = act(obs, qmodel, eps)
+    action = act(obs, qmodel, eps_list[step])
     new_obs, reward, terminated, truncated, info = env.step(action)
     # turn everything into tensors
     reward = th.tensor(reward, dtype=th.float32)
@@ -69,16 +71,19 @@ def train(n_steps=100, eps=1.0, learning_rate=0.1):
     loss.backward()
     optimizer.step()
     tot_reward += reward
+    episode_rew += reward
     if terminated:
       new_obs, _ = env.reset()
       new_obs = th.tensor(new_obs, dtype=th.float32)
+      episode_rew = 0
     if step % 100 == 0:
-      print(f"Step {step}: {loss.item()}")
+      print(f"Step {step}: {loss.item()}, ep reward: {episode_rew}")
+
     obs = new_obs
   return qmodel
 
 
-qmodel = train(10000, eps=1.0, learning_rate=0.1)
+qmodel = train(10000, eps=1.0, learning_rate=0.001)
 
 eval(qmodel)
 
